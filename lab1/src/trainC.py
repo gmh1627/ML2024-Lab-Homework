@@ -62,7 +62,7 @@ def main():
     parser.add_argument(
         "--lr", 
         type=float, 
-        default=2e-6,
+        default=5e-2,
         help="The learning rate used for optimization.",
     )
     parser.add_argument(
@@ -82,7 +82,7 @@ def main():
     parser.add_argument(
         "--steps", 
         type=int, 
-        default=100,
+        default=2000,
         help="The number of optimization steps to perform.",
     )
     parser.add_argument(

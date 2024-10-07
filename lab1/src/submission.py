@@ -1,13 +1,14 @@
 import yaml
 import dataclasses
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 from tqdm import tqdm
 from datasets import Dataset, load_from_disk, load_dataset, concatenate_datasets
 from typing import Tuple
 from model import BaseModel
-
+from sklearn.preprocessing import StandardScaler
 from utils import(
     TrainConfigR,
     TrainConfigC,
@@ -41,12 +42,32 @@ def data_preprocessing_regression(data_path: str, saved_to_disk: bool = False) -
     # Preprocess the dataset
     # Use dataset.to_pandas() to convert the dataset to a pandas DataFrame if you are more comfortable with pandas
     # TODO：You must do something in 'Run_time' column, and you can also do other preprocessing steps
-    def preprocess_function(examples):
-        examples['Run_time'] = np.log(examples['Run_time'])
-        return examples
 
-    # Apply the preprocessing function to the dataset
-    dataset = dataset.map(preprocess_function)
+    df = dataset['train'].to_pandas()
+    df['Run_time'] = np.log(df['Run_time'])
+    
+    run_time = df['Run_time']
+    features = df.drop(columns=['Run_time'])
+
+    # Manually standardize the features (mean=0, std=1)
+    features_standardized = (features - features.mean()) / features.std()
+
+    # Combine the standardized features and Run_time column back into a DataFrame
+    df_standardized = pd.DataFrame(features_standardized, columns=features.columns)
+    df_standardized['Run_time'] = run_time.values
+    dataset = Dataset.from_pandas(df_standardized)
+    '''
+    scaler = StandardScaler()
+
+    # 获取需要标准化的列名
+    columns_to_scale = df.columns[df.columns != 'Run_time']
+
+    # 对这些列应用scaler
+    for column in columns_to_scale:
+        df[column] = scaler.fit_transform(df[[column]])
+
+    dataset = Dataset.from_pandas(df)
+    '''
     return dataset
 
 def data_split_regression(dataset: Dataset, batch_size: int, shuffle: bool) -> Tuple[DataLoader]:
@@ -63,7 +84,7 @@ def data_split_regression(dataset: Dataset, batch_size: int, shuffle: bool) -> T
     # 1.1-b
     # Split the dataset using dataset.train_test_split() or other methods
     # TODO: Split the dataset
-    train_spilt = dataset['train'].train_test_split(test_size=0.2, shuffle=shuffle)
+    train_spilt = dataset.train_test_split(test_size=0.2, shuffle=shuffle)
     train_dataset = train_spilt['train']
     temp_dataset = train_spilt['test']
 
@@ -113,7 +134,14 @@ class LinearRegression(BaseModel):
         # TODO: Register the parameters
         self.W = Parameter(np.random.randn(in_features, out_features))
         self.b = Parameter(np.random.randn(out_features))
-    
+        #self.register_parameters(W=self.W, b=self.b)
+    #     self.register_parameter('W', self.W)
+    #     self.register_parameter('b', self.b)
+        
+    # def register_parameter(self, name: str, parameter: 'Parameter'):
+    #     super().__setattr__(name, parameter)
+    #     self._parameters[name] = parameter
+
     def predict(self, x: np.ndarray) -> np.ndarray:
         # 1.2-b
         # Implement the forward pass of the model
@@ -143,7 +171,7 @@ class MSELoss(Loss):
         # 1.3-a
         # Compute the mean squared error loss. Make sure y_pred and y_true have the same shape
         # TODO: Compute the mean squared error loss
-        mse = np.mean((y_pred - y_true) ** 2)
+        mse = 0.5 * np.mean((y_pred - y_true) ** 2)
         return mse
     
     def backward(self, x: np.ndarray, y_pred: np.ndarray, y_true: np.ndarray) -> dict[str, np.ndarray]:
@@ -160,8 +188,8 @@ class MSELoss(Loss):
         # 1.3-b
         # Make sure y_pred and y_true have the same shape
         # TODO: Compute the gradients of the loss with respect to the parameters
-        grad_W = (2 / x.shape[0]) * x.T @ (y_pred - y_true)
-        grad_b = (2 / x.shape[0]) * np.sum(y_pred - y_true)
+        grad_W = (1 / x. shape[0]) * x.T @ (y_pred - y_true)
+        grad_b = (1 / x.shape[0]) * np.sum(y_pred - y_true)
         return {"W": grad_W, "b": grad_b}
     
 # 1.4
@@ -211,7 +239,7 @@ class TrainerR:
                 for batch in self.train_loader:
                     features = batch[:, :-1]
                     target = batch[:, -1].reshape(-1, 1)
-                    pred = self.model(features)
+                    pred = self.model.predict(features)
                     loss = self.criterion(pred, target)
                     loss_list.append(loss.item())
                     
@@ -266,7 +294,8 @@ def eval_LinearRegression(model: LinearRegression, loader: DataLoader) -> Tuple[
     mu_target = np.mean(target)
     # You can alse compute MSE and relative error
     mse = np.mean((pred - target) ** 2)
-    relative_error = np.mean(np.abs(pred - target) / target)
+    #relative_error = np.abs(mu_pred - mu_target) / mu_target if mu_target != 0 else 0
+    relative_error = np.abs(mu_pred - mu_target) / mu_target
     # TODO: Compute metrics
     print(f"Mean Target: {mu_target}")
     print(f"Mean Squared Error: {mse}")
@@ -293,10 +322,23 @@ def data_preprocessing_classification(data_path: str, mean: float, saved_to_disk
     # Use dataset.to_pandas() to convert the dataset to a pandas DataFrame if you are more comfortable with pandas
     # TODO：You must do something in 'Run_time' column, and you can also do other preprocessing steps
     df = dataset['train'].to_pandas()
-    df['Run_time'] = (df['Run_time'] > mean).astype(int)
-    dataset = Dataset.from_pandas(df)
+    df['Run_time'] = np.log(df['Run_time'])
+    df['label'] = (df['Run_time'] > mean).astype(int)
+    #print(mean)
+    #print(df['Run_time'])
+    # Manually standardize the features (mean=0, std=1)
+    label = df['label']
+    #print(df['Run_time'])
+    #print(label)
+    features = df.drop(columns=['Run_time', 'label'])
+    features_standardized = (features - features.mean()) / features.std()
+
+    # Combine the standardized features and Run_time column back into a DataFrame
+    df_standardized = pd.DataFrame(features_standardized, columns=features.columns)
+    df_standardized['label'] = label.values
+    #print(df_standardized)
+    dataset = Dataset.from_pandas(df_standardized)
     return dataset
-    # dataset = Dataset.from_pandas(dataset) # Convert the pandas DataFrame back to a dataset
 
 def data_split_classification(dataset: Dataset) -> Tuple[Dataset]:
     r"""Split the dataset and make it ready for training.

@@ -31,9 +31,9 @@ def main():
         help="The path to the training data.",
     )
     parser.add_argument(
-        "--batch_size", 
+        "--batch_size",
         type=int, 
-        default=2048,
+        default=4096,
         help="The batch size for training.",
     )
     parser.add_argument(
@@ -61,7 +61,7 @@ def main():
     parser.add_argument(
         "--lr", 
         type=float, 
-        default=2e-5,
+        default=2e-2,
         help="The learning rate used for optimization.",
     )
     parser.add_argument(

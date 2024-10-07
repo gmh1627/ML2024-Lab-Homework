@@ -261,7 +261,7 @@ $$\mathcal{L}_{BCE}=-\mathbb{E}[y\log p+(1-y)\log {(1-p)}]$$
 使用下面的命令启动默认参数配置训练脚本:
 
 ```bash
-python trainC.py --results_path "..\results\train\"
+python trainC.py --results_path "..\results\train\" --mean 
 ```
 
 你也可以把输出重定向到``log``文件中:
